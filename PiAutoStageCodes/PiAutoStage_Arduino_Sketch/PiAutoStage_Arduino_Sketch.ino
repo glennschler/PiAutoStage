@@ -50,8 +50,10 @@ void loop() {
      servo2.toCharArray(carray2, sizeof(carray2));
      n2 = atoi(carray2);
      if (n1 == 5555) {    //looks for the GoCode to attach the servo motors
-      myservo1.attach(12);  //the pin for the servo control. Pin corresponds to X-motor. 
-      myservo2.attach(13);  //the pin for the servo control. Pin corresponds to Y-motor.
+
+      // Using the L293D Driver Shield requires Pin 9 and Pin 10
+      myservo1.attach(10);  //the pin for the servo control. Pin 10 corresponds to X-motor. 
+      myservo2.attach(09);  //the pin for the servo control. Pin 9 corresponds to Y-motor.
       n1 = 1500;
      }
      
