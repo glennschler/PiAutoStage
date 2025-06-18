@@ -65,6 +65,36 @@ count = 1000
 ##############################################################################
 
 
+def safe_serial_write(ser, data, retries=3, delay=0.1):
+    """Write to serial port only when ready, with retries and error handling."""
+    for attempt in range(retries):
+        try:
+            if not ser.is_open:
+                ser.open()
+            ser.write(data.encode())
+            ser.flush()  # Wait for write to complete
+            return True
+        except Exception as e:
+            print(f"Serial write failed (attempt {attempt+1}): {e}")
+            time.sleep(delay)
+    print("Serial write failed after retries.")
+    return False
+
+def safe_exit(ser, otp=None, exit_code=1):
+    """Safely close serial port and output file, then exit."""
+    try:
+        if ser and ser.is_open:
+            ser.close()
+    except Exception as e:
+        print(f"Error closing serial port: {e}")
+    if otp:
+        try:
+            otp.close()
+        except Exception as e:
+            print(f"Error closing output file: {e}")
+    print("Exiting program due to serial communication failure.")
+    exit(exit_code)
+
 ####  Initialize Serial Port and Baude Rate  ####
 ser = serial.Serial('/dev/ttyACM0', 9600)
 print('\n\nSerial port intilized: 5 second delay for Arduino\n')
@@ -72,7 +102,8 @@ print('\n\nSerial port intilized: 5 second delay for Arduino\n')
 time.sleep(4)
 #### sends the GoCode to attach the Arduino Pins to the Servos ####
 go = '55551500'
-ser.write(go.encode())
+if not safe_serial_write(ser, go):
+    safe_exit(ser)
 time.sleep(1)
 
 print('Arduino Ready for Instructions\n')
@@ -106,7 +137,8 @@ time.sleep(1)
 
 print('Beginning focus and image parameter sequence. \n')
 print('Moving to focus position at: ' + focus_pos + "\n")
-ser.write(focus_pos.encode())
+if not safe_serial_write(ser, focus_pos):
+    safe_exit(ser, otp)
 
 with picamera.PiCamera() as camera:
             camera.resolution = res
@@ -122,7 +154,7 @@ print("Focus AWB gains: " + str(g)+ "\n")
 otp.write("Focus exposure speed: " + str(q1) + "\n")
 otp.write("Focus AWB gains: " + str(g)+ "\n")
 
-ser.write(a.encode())
+safe_serial_write(ser, a)
 time.sleep(1)
 with picamera.PiCamera() as camera:
             camera.resolution = res
@@ -133,12 +165,13 @@ with picamera.PiCamera() as camera:
             q2 = camera.exposure_speed
             g1 = camera.awb_gains
             camera.stop_preview()
+
 print("Position 'a' exposure speed: " + str(q2)+ "\n")
 print("Position 'a' AWB gains: " + str(g1)+ "\n")
 otp.write("Position 'a' exposure speed: " + str(q2)+ "\n")
 otp.write("Position 'a' AWB gains: " + str(g1)+ "\n")
 
-ser.write(b.encode())
+safe_serial_write(ser, b)
 time.sleep(1)
 with picamera.PiCamera() as camera:
             camera.resolution = res
@@ -154,7 +187,7 @@ print("Position 'b' AWB gains: " + str(g2)+ "\n")
 otp.write("Position 'b' exposure speed: " + str(q3)+ "\n")
 otp.write("Position 'b' AWB gains: " + str(g2)+ "\n")
 
-ser.write(c.encode())
+safe_serial_write(ser, c)
 time.sleep(1)
 with picamera.PiCamera() as camera:
             camera.resolution = res
@@ -169,7 +202,7 @@ print("Position 'c' AWB gains: " + str(g3)+ "\n")
 otp.write("Position 'c' exposure speed: " + str(q4)+ "\n")
 otp.write("Position 'c' AWB gains: " + str(g3)+ "\n")
 
-ser.write(d.encode())
+safe_serial_write(ser, d)
 time.sleep(1)
 with picamera.PiCamera() as camera:
             camera.resolution = res
@@ -225,7 +258,7 @@ while i <= num_x:
     print('\nImaging column: ' + str(i+1) + ' of ' + str(num_x+1))
     y = y_max
     j = 0
-    #### The following 7 lines bring the carraige beyong the area being imaged. ####
+    #### The following 7 lines bring the carraige beyond the area being imaged. ####
     #### This allows for the stage to compensate for the limited slip in gears  ####
     #### depending on the print quality (degree of slip) and the limits of the  ####
     #### user's stage, the y1 value may need to be changed                      #### 
@@ -235,7 +268,7 @@ while i <= num_x:
         x1 = str(x)
     y1 = '1700'
     coord1 = x1 + y1
-    ser.write(coord1.encode())
+    safe_serial_write(ser, coord1)
     
     #### This loop steps carraige along the column, capturing images            ####
     while j <= num_y:
@@ -249,9 +282,10 @@ while i <= num_x:
         else:
             y1 = str(y)
         coord1 = x1 + y1
-        #print(coord1)
+        print(f'\nCapturing image at coordinates: X={x1}, Y={y1}')
         otp.write("Location of picture " + str(count) + " is at X= " + str(x1) + " and Y= " + str(y1)+ "\n")
-        ser.write(coord1.encode())
+        if not safe_serial_write(ser, coord1):
+            safe_exit(ser, otp)
         with picamera.PiCamera() as camera:
             camera.iso = isx
             camera.resolution = res
@@ -284,7 +318,8 @@ else:
     b1 = str(b)
 coord = a1 + b1
 print(coord)
-ser.write(coord.encode())
+if not safe_serial_write(ser, coord):
+    safe_exit(ser, otp)
 
 otp.close()
 
